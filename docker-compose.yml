@@ -1,0 +1,165 @@
+version: '3.8'
+
+# ============================================================
+# INFRASTRUKTURA MIKROSERWISÓW
+# ============================================================
+# Uruchomienie: docker-compose up --build
+# Zatrzymanie:  docker-compose down -v  (-v usuwa wolumeny/dane)
+#
+# Kolejność startowania:
+# postgres → zookeeper → kafka → [order, inventory, notification]
+# (depends_on z condition: service_healthy zapewnia właściwą kolejność)
+# ============================================================
+
+services:
+
+  # ============================================================
+  # POSTGRESQL — jedna instancja, dwie bazy (orderdb + inventorydb)
+  # W produkcji: osobne instancje DB dla każdego serwisu (większa izolacja)
+  # ============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres  # domyślna baza
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql  # auto-run przy pierwszym starcie
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================
+  # ZOOKEEPER — wymagany przez Kafkę do koordynacji klastra
+  # Uwaga: w nowszych wersjach Kafki (KRaft mode) Zookeeper jest opcjonalny
+  # ============================================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: [ "CMD", "echo", "ruok", "|", "nc", "localhost", "2181" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================
+  # APACHE KAFKA — message broker
+  #
+  # LISTENERS — dwa listenery:
+  #   PLAINTEXT://0.0.0.0:9092  → dla kontenerów w sieci Docker (bootstrap-servers: kafka:9092)
+  #   PLAINTEXT_HOST://0.0.0.0:29092 → dla aplikacji na hoście (localhost:29092, np. Kafka UI)
+  # ============================================================
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      # Automatyczne tworzenie topicków (w produkcji wyłącz i zarządzaj ręcznie)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    ports:
+      - "9092:9092"    # wewnętrzna sieć Docker
+      - "29092:29092"  # dostęp z hosta (np. Kafka UI, kafkacat)
+    healthcheck:
+      test: [ "CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list" ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+
+  # ============================================================
+  # KAFKA UI — przeglądarka topicków i wiadomości w przeglądarce
+  # Otwórz: http://localhost:8090
+  # Świetne do nauki — możesz obserwować eventy w czasie rzeczywistym!
+  # ============================================================
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+
+  # ============================================================
+  # ORDER SERVICE
+  # ============================================================
+  order-service:
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
+    container_name: order-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_NAME: orderdb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8081:8081"
+
+  # ============================================================
+  # INVENTORY SERVICE
+  # ============================================================
+  inventory-service:
+    build:
+      context: .
+      dockerfile: inventory-service/Dockerfile
+    container_name: inventory-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_NAME: inventorydb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8082:8082"
+
+  # ============================================================
+  # NOTIFICATION SERVICE
+  # ============================================================
+  notification-service:
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    container_name: notification-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8083:8083"
+
+volumes:
+  postgres_data:

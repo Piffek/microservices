@@ -1,0 +1,90 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: notification-service
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: notification-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+# ============================================================
+# CIRCUIT BREAKER — konfiguracja Resilience4j
+# ============================================================
+resilience4j:
+  circuitbreaker:
+    instances:
+      emailService:
+        # TIME_BASED zamiast domyślnego COUNT_BASED — patrzymy "co się działo
+        # w ostatnie 60 sekund", niezależnie od tego czy było 2 czy 200 wywołań
+        # w tym czasie. Przy nierównym ruchu COUNT_BASED reaguje nieprzewidywalnie
+        # (okno "ostatnie 10 wywołań" może rozciągać się na sekundę albo godzinę).
+        sliding-window-type: TIME_BASED
+        sliding-window-size: 60
+        # Minimalna liczba wywołań przed oceną (unikamy "OPEN na 1 błąd")
+        minimum-number-of-calls: 10
+        # Próg błędów: jeśli >= 50% wywołań zakończy się błędem → OPEN
+        failure-rate-threshold: 50
+        # Wywołanie trwające dłużej niż 2s liczy się jak błąd, NAWET jeśli
+        # technicznie się udało. Bez tego zawieszone (ale nie rzucające
+        # wyjątku) wywołanie nigdy nie otworzyłoby CB.
+        slow-call-duration-threshold: 2s
+        slow-call-rate-threshold: 80
+        # Czas w stanie OPEN przed przejściem do HALF_OPEN
+        wait-duration-in-open-state: 15s
+        # Ile wywołań przepuszcza w stanie HALF_OPEN (test recovery)
+        permitted-number-of-calls-in-half-open-state: 5
+        # Automatyczne przejście z OPEN do HALF_OPEN po czasie (bez czekania na request)
+        automatic-transition-from-open-to-half-open-enabled: true
+        # Nagrywaj metryki w Actuatorze (/actuator/health, /actuator/metrics)
+        register-health-indicator: true
+        # Licz do progu TYLKO realne awarie infrastruktury/API.
+        record-exceptions:
+          - com.example.notification.exception.EmailApiException
+        # Błąd walidacji (zły adres) NIE oznacza, że zewnętrzne API jest zepsute —
+        # nie ma prawa wpływać na to, czy CB się otworzy.
+        ignore-exceptions:
+          - com.example.notification.exception.InvalidEmailAddressException
+
+  retry:
+    instances:
+      emailService:
+        max-attempts: 3
+        wait-duration: 500ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        # KLUCZOWE: gdy CB jest OPEN, retry NIE MA sensu próbować ponownie —
+        # tylko marnowałby czas i "dobijał" bezpiecznik zamiast dać mu odpocząć.
+        ignore-exceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+          - com.example.notification.exception.InvalidEmailAddressException
+
+  bulkhead:
+    instances:
+      emailService:
+        # Maks. 10 równoległych wywołań emailService — chroni pulę wątków appki
+        # przed zajęciem jej całej przez wolne wysyłki maili.
+        max-concurrent-calls: 10
+        max-wait-duration: 0msmacz
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,circuitbreakers,retries,bulkheads
+  endpoint:
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
+
+logging:
+  level:
+    com.example: DEBUG
+    io.github.resilience4j: DEBUG
