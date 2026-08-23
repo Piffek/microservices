@@ -25,7 +25,7 @@ spring:
         format_sql: true
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     producer:
       # StringSerializer — wysyłamy payload jako String (JSON)
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
