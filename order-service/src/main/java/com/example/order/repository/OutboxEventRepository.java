@@ -1,9 +1,7 @@
 package com.example.order.repository;
 
 import com.example.order.domain.OutboxEvent;
-import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
@@ -25,7 +23,6 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> 
      *
      * Jest to zapytanie natywne (PostgreSQL-specific syntax).
      */
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(value = "SELECT * FROM outbox_events WHERE published = false ORDER BY created_at FOR UPDATE SKIP LOCKED",
             nativeQuery = true)
     List<OutboxEvent> findUnpublishedEventsWithLock();
