@@ -70,13 +70,13 @@ resilience4j:
         # Maks. 10 równoległych wywołań emailService — chroni pulę wątków appki
         # przed zajęciem jej całej przez wolne wysyłki maili.
         max-concurrent-calls: 10
-        max-wait-duration: 0msmacz
+        max-wait-duration: 0ms
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,circuitbreakers,retries,bulkheads
+        include: health,info,metrics,prometheus,circuitbreakers,retries,bulkheads
   endpoint:
     health:
       show-details: always

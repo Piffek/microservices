@@ -102,6 +102,42 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
 
   # ============================================================
+  # PROMETHEUS — zbiera metryki z mikrousług
+  # Otwórz: http://localhost:9090
+  # ============================================================
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: prometheus
+    depends_on:
+      - order-service
+      - inventory-service
+      - notification-service
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  # ============================================================
+  # GRAFANA — dashboardy i wizualizacja metryk
+  # Otwórz: http://localhost:3000 (admin/admin)
+  # ============================================================
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+  # ============================================================
   # ORDER SERVICE
   # ============================================================
   order-service:
@@ -163,3 +199,4 @@ services:
 
 volumes:
   postgres_data:
+  grafana_data:

@@ -43,7 +43,23 @@ Infrastruktura:
   PostgreSQL :5432  — bazy: orderdb, inventorydb
   Kafka      :9092  — topiki: order.created, inventory.reserved
   Kafka UI   :8090  — http://localhost:8090 (podgląd w przeglądarce)
+  Prometheus :9090  — http://localhost:9090 (źródło metryk)
+  Grafana    :3000  — http://localhost:3000 (dashboardy, admin/admin)
 ```
+
+## Monitoring
+
+Każda mikrousługa udostępnia metryki Prometheus pod adresem `/actuator/prometheus`.
+Prometheus zbiera je automatycznie, a Grafana korzysta z gotowego źródła danych
+`Prometheus` skonfigurowanego przez Docker Compose.
+
+Uruchomienie całego środowiska:
+
+```bash
+docker compose up --build
+```
+
+Po uruchomieniu otwórz `http://localhost:3000` i zaloguj się danymi `admin/admin`.
 
 ## Wzorce mikroserwisowe w projekcie
 
