@@ -26,6 +26,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/orders")
+@CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 public class OrderController {
 

@@ -61,6 +61,18 @@ docker compose up --build
 
 Po uruchomieniu otwórz `http://localhost:3000` i zaloguj się danymi `admin/admin`.
 
+### Panel do klikania
+
+Po uruchomieniu backendu możesz otworzyć interaktywny panel zamówień:
+
+```bash
+cd web
+python -m http.server 5500
+```
+
+Następnie wejdź na **http://localhost:5500**. Panel pozwala wybrać gotowy produkt,
+wysłać zamówienie i od razu zobaczyć odpowiedź Order Service. Eventy podejrzysz w Kafka UI.
+
 ## Wzorce mikroserwisowe w projekcie
 
 ### 1. Outbox Pattern (Order Service)

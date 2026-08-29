@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Order Flow | Microservices Lab</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+    :root { --ink:#14211f; --muted:#65736e; --paper:#f5f1e8; --card:#fffdf8; --mint:#b9e6cf; --coral:#ef785e; --line:#d9ded5; --shadow:0 18px 50px rgba(30,49,42,.10); }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; color:var(--ink); background:var(--paper); font-family:'Space Grotesk', sans-serif; }
+    body:before { content:''; position:fixed; inset:0; pointer-events:none; opacity:.35; background-image:linear-gradient(rgba(20,33,31,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(20,33,31,.04) 1px,transparent 1px); background-size:32px 32px; }
+    main { position:relative; max-width:1180px; margin:auto; padding:34px 24px 56px; }
+    header { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:42px; }
+    .kicker { color:var(--coral); font:500 12px 'DM Mono',monospace; letter-spacing:1.5px; text-transform:uppercase; }
+    h1 { max-width:680px; margin:9px 0 12px; font-size:clamp(38px,6vw,76px); line-height:.96; letter-spacing:-2px; }
+    .intro { max-width:550px; color:var(--muted); font-size:17px; line-height:1.5; }
+    .health { display:flex; align-items:center; gap:9px; padding:10px 13px; background:var(--card); border:1px solid var(--line); font:500 12px 'DM Mono',monospace; white-space:nowrap; }
+    .dot { width:9px; height:9px; border-radius:50%; background:#f0b64c; }
+    .dot.ok { background:#42a778; } .dot.bad { background:var(--coral); }
+    .layout { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr); gap:22px; align-items:start; }
+    .panel { background:var(--card); border:1px solid var(--line); box-shadow:var(--shadow); padding:27px; }
+    .panel h2 { margin:0 0 22px; font-size:23px; letter-spacing:-.5px; }
+    label { display:block; margin:17px 0 7px; color:var(--muted); font:500 11px 'DM Mono',monospace; text-transform:uppercase; letter-spacing:.7px; }
+    input { width:100%; border:1px solid var(--line); background:#faf8f1; padding:13px 14px; color:var(--ink); font:16px 'Space Grotesk',sans-serif; outline:none; }
+    input:focus { border-color:var(--coral); box-shadow:0 0 0 3px rgba(239,120,94,.14); }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .presets { display:flex; flex-wrap:wrap; gap:8px; margin:5px 0 21px; }
+    button { border:0; cursor:pointer; font:600 14px 'Space Grotesk',sans-serif; transition:transform .15s, background .15s; }
+    button:hover { transform:translateY(-2px); }
+    .preset { padding:9px 11px; border:1px solid var(--line); background:transparent; color:var(--ink); font-size:12px; }
+    .preset:hover { background:var(--mint); }
+    .submit { width:100%; margin-top:24px; padding:15px; background:var(--ink); color:white; }
+    .submit:hover { background:var(--coral); }
+    .submit:disabled { cursor:wait; opacity:.6; transform:none; }
+    .side { display:grid; gap:22px; }
+    .flow { display:grid; gap:0; }
+    .step { display:grid; grid-template-columns:34px 1fr; gap:13px; padding:13px 0; border-bottom:1px solid var(--line); }
+    .step:last-child { border-bottom:0; }
+    .number { display:grid; place-items:center; width:28px; height:28px; background:var(--mint); font:500 12px 'DM Mono',monospace; }
+    .step strong { display:block; margin-bottom:4px; } .step span { color:var(--muted); font-size:13px; line-height:1.35; }
+    .result { min-height:130px; background:#edf5ed; border-left:4px solid #42a778; padding:17px; }
+    .result.error { background:#fff0eb; border-color:var(--coral); } .result.empty { background:#f7f6f0; border-color:#d1d5cc; }
+    .result-label { color:var(--muted); font:500 11px 'DM Mono',monospace; text-transform:uppercase; }
+    .result h3 { margin:10px 0 7px; font-size:20px; } .result p { margin:0; color:var(--muted); font-size:14px; line-height:1.4; }
+    .order-id { display:inline-block; margin-top:12px; color:var(--ink); font:500 12px 'DM Mono',monospace; word-break:break-all; }
+    footer { margin-top:28px; color:var(--muted); font:12px 'DM Mono',monospace; }
+    @media (max-width:760px) { main { padding:24px 16px 42px; } header { display:block; margin-bottom:30px; } .health { display:inline-flex; margin-top:18px; } .layout { grid-template-columns:1fr; } .panel { padding:21px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <div class="kicker">Microservices lab / order flow</div>
+        <h1>Zamówienie w ruchu.</h1>
+        <p class="intro">Mały panel do obserwowania pełnej ścieżki: Order Service zapisuje zamówienie, Outbox wysyła event do Kafki, a Inventory próbuje zarezerwować produkt.</p>
+      </div>
+      <div class="health"><span class="dot" id="healthDot"></span><span id="healthText">sprawdzam API...</span></div>
+    </header>
+    <section class="layout">
+      <form class="panel" id="orderForm">
+        <h2>Nowe zamówienie</h2>
+        <div class="presets">
+          <button class="preset" type="button" data-product="prod-123" data-price="499.99">Laptop Pro 15</button>
+          <button class="preset" type="button" data-product="prod-456" data-price="149.99">Mechanical Keyboard</button>
+          <button class="preset" type="button" data-product="prod-789" data-price="29.99">USB-C Hub / brak</button>
+        </div>
+        <label for="customerId">Klient</label>
+        <input id="customerId" value="user-demo" required>
+        <label for="productId">Produkt</label>
+        <input id="productId" value="prod-123" required>
+        <div class="row">
+          <div><label for="quantity">Ilość</label><input id="quantity" type="number" min="1" value="2" required></div>
+          <div><label for="price">Cena za sztukę</label><input id="price" type="number" min="0.01" step="0.01" value="499.99" required></div>
+        </div>
+        <button class="submit" id="submitButton" type="submit">Wyślij zamówienie <span aria-hidden="true">→</span></button>
+      </form>
+      <div class="side">
+        <section class="panel">
+          <h2>Co właśnie testujesz</h2>
+          <div class="flow">
+            <div class="step"><div class="number">01</div><div><strong>Order Service</strong><span>Transakcja zapisuje order i outbox event.</span></div></div>
+            <div class="step"><div class="number">02</div><div><strong>Kafka</strong><span>Event <b>order.created</b> czeka na konsumenta.</span></div></div>
+            <div class="step"><div class="number">03</div><div><strong>Inventory Service</strong><span>Inbox chroni przed podwójną rezerwacją.</span></div></div>
+            <div class="step"><div class="number">04</div><div><strong>Notification Service</strong><span>Wynik trafia dalej przez event.</span></div></div>
+          </div>
+        </section>
+        <section class="result empty" id="result"><div class="result-label">Ostatnia odpowiedź</div><h3>Panel gotowy</h3><p>Wybierz produkt lub wyślij własne dane, aby rozpocząć.</p></section>
+      </div>
+    </section>
+    <footer>API: localhost:8081/orders · event bus: localhost:29092 · Kafka UI: localhost:8090</footer>
+  </main>
+  <script>
+    const api = 'http://localhost:8081';
+    const form = document.querySelector('#orderForm');
+    const result = document.querySelector('#result');
+    const submit = document.querySelector('#submitButton');
+    const showResult = (title, text, id, error = false) => {
+      result.className = `result${error ? ' error' : ''}`;
+      result.innerHTML = `<div class="result-label">Ostatnia odpowiedź</div><h3>${title}</h3><p>${text}</p>${id ? `<span class="order-id">orderId: ${id}</span>` : ''}`;
+    };
+    document.querySelectorAll('.preset').forEach(button => button.addEventListener('click', () => {
+      document.querySelector('#productId').value = button.dataset.product;
+      document.querySelector('#price').value = button.dataset.price;
+    }));
+    form.addEventListener('submit', async event => {
+      event.preventDefault(); submit.disabled = true; submit.textContent = 'Wysyłanie...';
+      const payload = { customerId: document.querySelector('#customerId').value, productId: document.querySelector('#productId').value, quantity: Number(document.querySelector('#quantity').value), pricePerUnit: Number(document.querySelector('#price').value) };
+      try {
+        const response = await fetch(`${api}/orders`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Backend odrzucił zamówienie');
+        showResult('Przyjęte do przetwarzania', `${data.message} Status: ${data.status}. Teraz możesz podejrzeć event w Kafka UI.`, data.orderId);
+      } catch (error) { showResult('Nie udało się wysłać', `${error.message}. Uruchom najpierw docker compose up --build.`, null, true); }
+      finally { submit.disabled = false; submit.innerHTML = 'Wyślij zamówienie <span aria-hidden="true">→</span>'; }
+    });
+    fetch(`${api}/actuator/health`).then(response => { if (!response.ok) throw new Error(); document.querySelector('#healthDot').className = 'dot ok'; document.querySelector('#healthText').textContent = 'order API online'; }).catch(() => { document.querySelector('#healthDot').className = 'dot bad'; document.querySelector('#healthText').textContent = 'order API offline'; });
+  </script>
+</body>
+</html>

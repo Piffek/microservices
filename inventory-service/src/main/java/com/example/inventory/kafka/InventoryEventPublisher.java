@@ -5,6 +5,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.UUID;
+
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
@@ -28,13 +31,20 @@ public class InventoryEventPublisher {
 
     public void publishInventoryReserved(InventoryReservedEvent event) {
         try {
-            String payload = objectMapper.writeValueAsString(event);
+            String payload = objectMapper.writeValueAsString(event);    
+            String orderId = orderIdOrEmpty(event.orderId());
             // Klucz = orderId → ta sama partycja dla eventów jednego zamówienia
-            kafkaTemplate.send("inventory.reserved", event.orderId().toString(), payload);
-            log.info("Published InventoryReservedEvent: orderId={}, success={}", event.orderId(), event.success());
+            kafkaTemplate.send("inventory.reserved", , payload);
+            log.info("Published InventoryReservedEvent: orderId={}, success={}", orderId, event.success());
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize InventoryReservedEvent: {}", e.getMessage());
             throw new RuntimeException(e);
         }
+    }
+
+    private String orderIdOrEmpty(UUID orderId) {
+        return orderId != null 
+        ? orderId.toString() 
+        : "";
     }
 }

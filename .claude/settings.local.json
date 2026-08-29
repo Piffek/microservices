@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(java -version)",
-      "Bash(mvn -q -pl notification-service -am compile)"
-    ]
-  }
-}
