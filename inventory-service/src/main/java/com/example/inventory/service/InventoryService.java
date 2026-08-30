@@ -11,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Logika biznesowa Inventory Service.
@@ -71,10 +73,14 @@ public class InventoryService {
         // Dopóki transakcja nie zostanie scommitowana, event nie jest "widziany" jako przetworzony.
         inboxEventRepository.save(InboxEvent.of(event.eventId(), "OrderCreatedEvent"));
 
-        // === Krok 4 — wyemituj event z wynikiem (POZA transakcją DB, po jej commicie) ===
-        // Publikujemy po commicie transakcji — dzięki temu Notification Service
-        // nie dostanie eventu jeśli commit się nie powiedzie.
-        // W Spring używamy @TransactionalEventListener(phase = AFTER_COMMIT) lub publishujemy osobno.
-        eventPublisher.publishInventoryReserved(resultEvent);
+        // === Krok 4 — wyemituj event z wynikiem PO commicie transakcji DB ===
+        // Dzięki temu Notification Service nie dostanie eventu jeśli commit się nie powiedzie.
+        
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                eventPublisher.publishInventoryReserved(resultEvent);
+            }
+        });
     }
 }
