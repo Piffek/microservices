@@ -34,7 +34,7 @@ public class InventoryEventPublisher {
             String payload = objectMapper.writeValueAsString(event);    
             String orderId = orderIdOrEmpty(event.orderId());
             // Klucz = orderId → ta sama partycja dla eventów jednego zamówienia
-            kafkaTemplate.send("inventory.reserved", , payload);
+            kafkaTemplate.send("inventory.reserved", orderId, payload);
             log.info("Published InventoryReservedEvent: orderId={}, success={}", orderId, event.success());
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize InventoryReservedEvent: {}", e.getMessage());
