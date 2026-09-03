@@ -295,3 +295,16 @@ curl http://localhost:8083/actuator/health | jq .
 # Metryki CB
 curl http://localhost:8083/actuator/metrics/resilience4j.circuitbreaker.state
 ```
+
+## Kafka CLI
+
+```bash
+# show topics
+docker exec -it kafka kafka-topics --list --bootstrap-server localhost:29092
+
+# show topic description
+docker exec -it kafka kafka-topics --bootstrap-server localhost:29092 --describe --topic order.created
+
+#show all revieved orders in real time
+docker exec -it kafka kafka-console-consumer --bootstrap-server localhost:29092 --topic order.created
+```
