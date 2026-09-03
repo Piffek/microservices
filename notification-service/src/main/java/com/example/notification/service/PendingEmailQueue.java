@@ -19,6 +19,10 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Component
 public class PendingEmailQueue {
 
+    /**
+     * Niezmienny DTO reprezentujący pojedynczy email oczekujący na ponowną próbę wysyłki.
+     * Przechowuje komplet danych potrzebnych do ponowienia wywołania EmailClient#sendEmail.
+     */
     public record PendingEmail(String to, String subject, String body) {}
 
     private final Queue<PendingEmail> queue = new ConcurrentLinkedQueue<>();
