@@ -31,6 +31,14 @@
         <java.version>21</java.version>
         <lombok.version>1.18.46</lombok.version>
         <resilience4j.version>2.2.0</resilience4j.version>
+        <!--
+            Nadpisujemy wersję Testcontainers zarządzaną przez Spring Boot (1.19.x):
+            nowsze Docker Engine (minimalne API 1.44) nie współpracują ze starszymi wersjami,
+            a ConfluentKafkaContainer jest dostępny dopiero od 1.20.
+        -->
+        <testcontainers.version>1.21.4</testcontainers.version>
+        <!-- Byte Buddy (używany przez Mockito) z Boota 3.3.x nie obsługuje JDK 25 — wymagane do @MockBean na nowym JDK -->
+        <byte-buddy.version>1.17.7</byte-buddy.version>
     </properties>
 
     <!-- Zależności wspólne dla wszystkich modułów -->
@@ -56,6 +64,16 @@
 
     <build>
         <plugins>
+            <!--
+                Testy integracyjne (*IT) uruchamia Failsafe w fazach integration-test/verify,
+                testy jednostkowe (*Test) — Surefire w fazie test.
+                "mvn test" jest więc szybkie i nie wymaga Dockera,
+                a "mvn verify" uruchamia pełen zestaw z Testcontainers.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
